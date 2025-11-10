@@ -5,17 +5,12 @@ future contributors can plan fixes without rediscovering the same gaps.
 
 ## High-priority fixes
 
-1. **Miner pagination underflows on small datasets.**
-   `get_miners` in `src/main.rs` subtracts from `miners.len()` without ensuring
-   the list contains at least two entries. When the cache is empty—or only one
-   miner has been observed—the calculation panics.
-
-2. **RPC/WebSocket schemes are hard-coded.**
+1. **RPC/WebSocket schemes are hard-coded.**
    Both RPC clients prepend fixed schemes ("https://" and "ws://") to the
    `RPC_URL` environment variable. Deployments that rely on HTTP-only endpoints,
    secure WebSockets, or custom ports must patch and rebuild.
 
-3. **WebSocket reconnection spins without backoff.**
+2. **WebSocket reconnection spins without backoff.**
    If `PubsubClient::new` fails, the loop immediately retries, wasting CPU
    during outages. Adding even a short delay (or exponential backoff) would be
    kinder to the host.

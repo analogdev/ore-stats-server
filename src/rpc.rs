@@ -1,3 +1,7 @@
+//! RPC helpers for populating and refreshing the application's in-memory state.
+//!
+//! Inline notes call out issues that were discovered during the fork review so
+//! that they remain visible until addressed.
 
 use std::{env, str::FromStr, time::Duration};
 
@@ -507,6 +511,8 @@ pub fn refinement_level_percent(refined_ore: f64, unclaimed_ore: f64) -> f64 {
 }
 
 pub async fn watch_live_board(rpc_url: &str, app_state: AppState) {
+    // TODO: Accept fully-qualified WebSocket URLs so deployments can switch to
+    // secure WebSockets or custom ports without modifying the source.
     let prefix = "ws://".to_string();
     let url = prefix + rpc_url;
     //let http_url = "https://".to_string() + rpc_url;
@@ -576,6 +582,9 @@ pub async fn watch_live_board(rpc_url: &str, app_state: AppState) {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
             }
+            // TODO: When the connection attempt fails the loop retries
+            // immediately, pegging a CPU core during outages.  Add delay and/or
+            // exponential backoff before retrying.
         }
     });
 

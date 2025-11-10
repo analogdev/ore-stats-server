@@ -1,3 +1,9 @@
+//! Binary entry point for the ORE stats service.
+//!
+//! The notes in this module describe the current startup behavior and highlight
+//! known gaps inherited from the upstream project.  See `docs/known_issues.md`
+//! for a consolidated reference.
+
 use std::{collections::HashMap, convert::Infallible, env, str::FromStr, sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 
 use anyhow::{anyhow, bail};
@@ -79,6 +85,9 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database ready!");
 
     let rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
+    // TODO: Allow the RPC URL to be fully qualified (including scheme/port) so
+    // deployments can target HTTP-only clusters or custom hosts without patching
+    // the code.
     let prefix = "https://".to_string();
     let connection = RpcClient::new_with_commitment(prefix + &rpc_url, CommitmentConfig { commitment: CommitmentLevel::Confirmed });
 
@@ -200,6 +209,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(middleware::from_fn(log_request_time))
         .with_state(state);
 
+    // TODO: Make the bind address configurable so Docker and remote deployments
+    // do not require code changes when exposing the service publicly.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
         .await?;
 
@@ -282,6 +293,9 @@ async fn get_miners(
                 // No ordering
             }
         }
+        // NOTE: Known bug — when `miners.len()` is 0 or 1 these subtractions
+        // underflow and panic.  Document the issue so a future change can adopt
+        // safe slicing helpers.
         let start = offset.min(miners.len() - 2);
         let end = start + limit.min(miners.len() - 1 - start);
         return Ok(Json(miners[start..end].to_vec()));

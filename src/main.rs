@@ -274,33 +274,35 @@ async fn get_miners(
     let reader = miners.read().await;
     let mut miners = reader.clone();
     drop(reader);
-    if miners.len() > 0 {
-        match p.order_by {
-            Some(v) => {
-                if v.eq("unclaimed_sol") {
-                    miners.sort_by(|a, b| b.rewards_sol.partial_cmp(&a.rewards_sol).unwrap());
-                } else if v.eq("unclaimed_ore") {
-                    miners.sort_by(|a, b| b.rewards_ore.partial_cmp(&a.rewards_ore).unwrap());
-                } else if v.eq("refined_ore") {
-                    miners.sort_by(|a, b| b.refined_ore.partial_cmp(&a.refined_ore).unwrap());
-                } else if v.eq("total_deployed") {
-                    miners.sort_by(|a, b| b.total_deployed.partial_cmp(&a.total_deployed).unwrap());
-                } else if v.eq("round_id") {
-                    miners.sort_by(|a, b| b.round_id.partial_cmp(&a.round_id).unwrap());
-                }
-            },
-            None => {
-                // No ordering
+
+    match p.order_by {
+        Some(v) => {
+            if v.eq("unclaimed_sol") {
+                miners.sort_by(|a, b| b.rewards_sol.partial_cmp(&a.rewards_sol).unwrap());
+            } else if v.eq("unclaimed_ore") {
+                miners.sort_by(|a, b| b.rewards_ore.partial_cmp(&a.rewards_ore).unwrap());
+            } else if v.eq("refined_ore") {
+                miners.sort_by(|a, b| b.refined_ore.partial_cmp(&a.refined_ore).unwrap());
+            } else if v.eq("total_deployed") {
+                miners.sort_by(|a, b| b.total_deployed.partial_cmp(&a.total_deployed).unwrap());
+            } else if v.eq("round_id") {
+                miners.sort_by(|a, b| b.round_id.partial_cmp(&a.round_id).unwrap());
             }
+        },
+        None => {
+            // No ordering
         }
-        // NOTE: Known bug — when `miners.len()` is 0 or 1 these subtractions
-        // underflow and panic.  Document the issue so a future change can adopt
-        // safe slicing helpers.
-        let start = offset.min(miners.len() - 2);
-        let end = start + limit.min(miners.len() - 1 - start);
-        return Ok(Json(miners[start..end].to_vec()));
     }
-    Ok(Json(miners))
+
+    let len = miners.len();
+    if len == 0 {
+        return Ok(Json(miners));
+    }
+
+    let start = offset.min(len);
+    let end = (start + limit).min(len);
+
+    Ok(Json(miners[start..end].to_vec()))
 }
 
 async fn get_treasury(

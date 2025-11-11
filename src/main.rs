@@ -7,6 +7,7 @@
 use std::{collections::HashMap, convert::Infallible, env, str::FromStr, sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 
 use anyhow::{anyhow, bail};
+use reqwest::Url;
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite};
 use thiserror::Error;
 use axum::{body::Body, extract::{Path, Query, State}, http::{Request, Response, StatusCode}, middleware::{self, Next}, response::{sse, Sse}, routing::get, Json, Router};
@@ -39,6 +40,47 @@ pub mod app_state;
 pub mod rpc;
 pub mod database;
 pub mod entropy_api;
+
+fn normalize_rpc_urls(raw: &str) -> anyhow::Result<(String, String)> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow!("RPC_URL must not be empty"));
+    }
+
+    if trimmed.contains("://") {
+        let parsed = Url::parse(trimmed)
+            .map_err(|err| anyhow!("RPC_URL must be a valid URL: {err}"))?;
+
+        match parsed.scheme() {
+            "http" | "https" => {
+                let http_url = parsed.clone();
+                let mut ws_url = parsed;
+                let ws_scheme = if http_url.scheme() == "https" { "wss" } else { "ws" };
+                ws_url
+                    .set_scheme(ws_scheme)
+                    .map_err(|_| anyhow!("failed to derive WebSocket URL from RPC_URL"))?;
+
+                Ok((http_url.into_string(), ws_url.into_string()))
+            }
+            "ws" | "wss" => {
+                let ws_url = parsed.clone();
+                let mut http_url = parsed;
+                let http_scheme = if ws_url.scheme() == "wss" { "https" } else { "http" };
+                http_url
+                    .set_scheme(http_scheme)
+                    .map_err(|_| anyhow!("failed to derive HTTP URL from RPC_URL"))?;
+
+                Ok((http_url.into_string(), ws_url.into_string()))
+            }
+            scheme => Err(anyhow!("Unsupported RPC_URL scheme: {scheme}")),
+        }
+    } else {
+        Ok((
+            format!("https://{trimmed}"),
+            format!("wss://{trimmed}"),
+        ))
+    }
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -85,11 +127,8 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database ready!");
 
     let rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
-    // TODO: Allow the RPC URL to be fully qualified (including scheme/port) so
-    // deployments can target HTTP-only clusters or custom hosts without patching
-    // the code.
-    let prefix = "https://".to_string();
-    let connection = RpcClient::new_with_commitment(prefix + &rpc_url, CommitmentConfig { commitment: CommitmentLevel::Confirmed });
+    let (rpc_http_url, rpc_ws_url) = normalize_rpc_urls(&rpc_url)?;
+    let connection = RpcClient::new_with_commitment(rpc_http_url.clone(), CommitmentConfig { commitment: CommitmentLevel::Confirmed });
 
     let treasury = if let Ok(treasury) = connection.get_account_data(&TREASURY_ADDRESS).await {
         if let Ok(treasury) = Treasury::try_from_bytes(&treasury) {
@@ -170,7 +209,7 @@ async fn main() -> anyhow::Result<()> {
     update_data_system(connection, s).await;
 
     let s = app_state.clone();
-    watch_live_board(&rpc_url, s).await;
+    watch_live_board(&rpc_ws_url, s).await;
 
     let state = app_state.clone();
 

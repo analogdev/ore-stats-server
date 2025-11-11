@@ -510,12 +510,8 @@ pub fn refinement_level_percent(refined_ore: f64, unclaimed_ore: f64) -> f64 {
     }
 }
 
-pub async fn watch_live_board(rpc_url: &str, app_state: AppState) {
-    // TODO: Accept fully-qualified WebSocket URLs so deployments can switch to
-    // secure WebSockets or custom ports without modifying the source.
-    let prefix = "ws://".to_string();
-    let url = prefix + rpc_url;
-    //let http_url = "https://".to_string() + rpc_url;
+pub async fn watch_live_board(rpc_ws_url: &str, app_state: AppState) {
+    let url = rpc_ws_url.to_string();
     tokio::spawn(async move {
         loop {
             if let Ok(ps_client) = PubsubClient::new(&url).await {

@@ -5,10 +5,9 @@ future contributors can plan fixes without rediscovering the same gaps.
 
 ## High-priority fixes
 
-1. **RPC/WebSocket schemes are hard-coded.**
-   Both RPC clients prepend fixed schemes ("https://" and "ws://") to the
-   `RPC_URL` environment variable. Deployments that rely on HTTP-only endpoints,
-   secure WebSockets, or custom ports must patch and rebuild.
+1. ~~**RPC/WebSocket schemes are hard-coded.**~~
+   Fixed: `RPC_URL` now accepts fully-qualified HTTP or WebSocket URLs and the
+   server derives the complementary scheme automatically.
 
 2. **WebSocket reconnection spins without backoff.**
    If `PubsubClient::new` fails, the loop immediately retries, wasting CPU
